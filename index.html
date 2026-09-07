@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Egate 39 IR Quiz</title>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; background-color: #f0f2f5; padding: 20px; display: flex; justify-content: center; }
+    .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 650px; }
+    .hidden { display: none; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }
+    input[type="text"], select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+    button { background-color: #0066cc; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; transition: background 0.2s; }
+    button:hover { background-color: #004b99; }
+    button:disabled { background-color: #cccccc; cursor: not-allowed; }
+    .prompt { font-size: 22px; font-weight: bold; color: #1a2b4c; margin-bottom: 15px; padding: 12px; background: #eef4ff; border-left: 5px solid #0066cc; border-radius: 4px; }
+    .warning { color: #d9534f; font-size: 13px; margin-top: 6px; display: none; font-weight: bold; }
+    .progress { font-size: 14px; color: #666; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    .summary-box { background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .score-badge { font-size: 24px; font-weight: bold; color: #0066cc; }
+    .error-section-title { font-size: 18px; font-weight: bold; color: #d9534f; margin-top: 20px; margin-bottom: 10px; border-bottom: 2px solid #d9534f; padding-bottom: 5px; }
+    .score-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .score-table th, .score-table td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
+    .score-table th { background-color: #f2f2f2; }
+    .wrong-row { background-color: #fff5f5; }
+    .user-wrong { color: #d9534f; font-weight: bold; text-decoration: line-through; }
+    .correct-ans { color: #28a745; font-weight: bold; }
+    .all-correct { background-color: #e6f4ea; color: #137333; padding: 15px; border-radius: 6px; font-weight: bold; text-align: center; margin-top: 15px; }
+    .status-msg { font-size: 13px; color: #666; margin-top: 5px; }
+  </style>
+</head>
+<body oncontextmenu="return false;">
+
+  <!-- 階段 1：員工資料登記 -->
+  <div id="login-card" class="card">
+    <h2> Egate 39 IR Quiz </h2>
+    <p style="color: #666; font-size: 14px;">共 39 題，每題 1 分。結果將自動同步至雲端記錄。</p>
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+    
+    <div class="form-group">
+      <label for="emp-id">員工編號 (Employee ID)</label>
+      <input type="text" id="emp-id" placeholder="例如：EMP12345">
+    </div>
+    <div class="form-group">
+      <label for="team-id">團隊 (Team)</label>
+      <select id="team-id">
+        <option value="">-- 請選擇 Team --</option>
+        <option value="Operation">Operation</option>
+        <option value="IT Support">IT Support</option>
+        <option value="Customer Service">Customer Service</option>
+        <option value="Security">Security</option>
+      </select>
+    </div>
+    <button onclick="startGame()">開始測驗</button>
+  </div>
+
+  <!-- 階段 2：拼字遊戲畫面 -->
+  <div id="game-card" class="card hidden">
+    <div class="progress">
+      <span id="progress-text">進度：1 / 39 題</span>
+      <span id="current-score-text">當前分數：0 分</span>
+    </div>
+    
+    <div class="prompt" id="chinese-prompt">中文提示：---</div>
+    
+    <div class="form-group">
+      <label for="answer-input">輸入對應英文系統訊息（禁止貼上）：</label>
+      <input type="text" id="answer-input" autocomplete="off" placeholder="請在此輸入英文..." onkeydown="handleKeyPress(event)">
+      <div id="paste-warning" class="warning">⚠️ 為確保公平，本測驗已禁用貼上 (Paste) 功能！請手動輸入。</div>
+    </div>
+    
+    <button onclick="submitAnswer()">下一題 / 提交</button>
+  </div>
+
+  <!-- 階段 3：結果與錯處展示 -->
+  <div id="result-card" class="card hidden">
+    <h2>測驗結果</h2>
+    
+    <div class="summary-box">
+      <p id="result-user-info" style="margin: 0 0 10px 0;"></p>
+      <div>總分：<span id="final-score" class="score-badge">0</span> / 39 分</div>
+      <div id="upload-status" class="status-msg">正在上傳結果至雲端...</div>
+    </div>
+
+    <div id="error-container"></div>
+
+    <br>
+    <button id="restart-btn" onclick="location.reload()">重新開始測驗</button>
+  </div>
+
+  <script>
+    // ⚠️ 請在此處貼上剛才從 Google Apps Script 取得的部署 URL
+    const GOOGLE_SCRIPT_URL = "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE";
+
+    const questions = [
+      { id: 1, cn: "1. 出發地不是香港", en: "Origin Not HKG" },
+      { id: 2, cn: "2. 沒有航班", en: "Flight Not Exist" },
+      { id: 3, cn: "3. 樣貌不符 - 相片低像素", en: "Face NOT Matched (Low quality)" },
+      { id: 4, cn: "4. 偵察發現嬰孩", en: "Baby Detected" },
+      { id: 5, cn: "5. 姓名不符", en: "Name Not Match" },
+      { id: 6, cn: "6. 航班已起飛", en: "Flight Departed" },
+      { id: 7, cn: "7. 樣貌不符", en: "Face Not Match" },
+      { id: 8, cn: "8. 尾隨進入", en: "Tail-Gating" },
+      { id: 9, cn: "9. 非法爬入", en: "Intrusion" },
+      { id: 10, cn: "10. 閘內非法爬出", en: "Evasion" },
+      { id: 11, cn: "11. 找不到樣貌", en: "Face Not Found" },
+      { id: 12, cn: "12. 隊長確認", en: "FaceVerification_Escalation" },
+      { id: 13, cn: "13. 無效登機證", en: "Barcode NOT valid" },
+      { id: 14, cn: "14. 航班已取消", en: "Flight Canceled" },
+      { id: 15, cn: "15. 樣貌活躍度檢測失效", en: "Face Liveness Fail" },
+      { id: 16, cn: "16. 樣貌活躍度檢測失效 - 相片低像素", en: "Face Liveness FAIL (Low quality)" },
+      { id: 17, cn: "17. 電子相片無效", en: "Face Feature NOT Found" },
+      { id: 18, cn: "18. 旅遊證件過期", en: "Travel Document Expired" },
+      { id: 19, cn: "19. 早於起飛時間24小時", en: "Flight Depart >24" },
+      { id: 20, cn: "20. 航空公司要求檢查", en: "Airline Exception" },
+      { id: 21, cn: "21. 重複進入", en: "Duplicated Entry" },
+      { id: 22, cn: "22. 相片低像素", en: "Face Matched - Low Quality" },
+      { id: 23, cn: "23. 超過指定時間", en: "Exit Time Out" },
+      { id: 24, cn: "24. 掃描登機證超過指定時間", en: "Boarding Pass Scan Timeout" },
+      { id: 25, cn: "25. CX需要聯絡乘客", en: "DCS check failed" },
+      { id: 26, cn: "26. 登機證資料不在系統內", en: "PAX not on DCS List" },
+      { id: 27, cn: "27. 辦理登機手續序列已變更", en: "DCS check-in sequence changed" },
+      { id: 28, cn: "28. 超過指定時間進入", en: "Entry Timeout" },
+      { id: 29, cn: "29. 求助按鈕", en: "Help Alert" },
+      { id: 30, cn: "30. 不間斷電源系統正在供電", en: "UPS Discharge" },
+      { id: 31, cn: "31. 不間斷電源系統回復待命狀態", en: "UPS Resume" },
+      { id: 32, cn: "32. 非電子旅行證件", en: "Non-e Travel Document" },
+      { id: 33, cn: "33. 機器故障", en: "Device Error" },
+      { id: 34, cn: "34. 名字缺失", en: "Family/ Given name swapping for short name combination" },
+      { id: 35, cn: "35. 名字缺一", en: "Part of Given name is missing" },
+      { id: 36, cn: "36. 無姓氏", en: "Substitute Family name by NLN" },
+      { id: 37, cn: "37. 無名字", en: "Substitute Given name by NFN" },
+      { id: 38, cn: "38. 航班即將起飛 - 30mins 內起飛", en: "Flight Almost Depart" },
+      { id: 39, cn: "39. 只接受傳統登機證", en: "Self-Print Or Mobile Boarding Pass" }
+    ];
+
+    let currentStep = 0;
+    let score = 0;
+    let userAnswers = [];
+    let userData = {};
+
+    const answerInput = document.getElementById('answer-input');
+
+    answerInput.addEventListener('paste', function(e) {
+      e.preventDefault();
+      document.getElementById('paste-warning').style.display = 'block';
+    });
+
+    answerInput.addEventListener('drop', function(e) { e.preventDefault(); });
+    answerInput.addEventListener('input', function() {
+      document.getElementById('paste-warning').style.display = 'none';
+    });
+
+    function handleKeyPress(e) {
+      if (e.key === 'Enter') submitAnswer();
+    }
+
+    function startGame() {
+      const empId = document.getElementById('emp-id').value.trim();
+      const team = document.getElementById('team-id').value;
+
+      if (!empId || !team) {
+        alert("請填寫員工編號並選擇 Team！");
+        return;
+      }
+
+      userData = { empId, team };
+      document.getElementById('login-card').classList.add('hidden');
+      document.getElementById('game-card').classList.remove('hidden');
+      showQuestion();
+    }
+
+    function showQuestion() {
+      if (currentStep < questions.length) {
+        document.getElementById('progress-text').textContent = `進度：${currentStep + 1} / ${questions.length} 題`;
+        document.getElementById('current-score-text').textContent = `當前分數：${score} 分`;
+        document.getElementById('chinese-prompt').textContent = questions[currentStep].cn;
+        answerInput.value = '';
+        answerInput.focus();
+      } else {
+        finishGame();
+      }
+    }
+
+    function submitAnswer() {
+      const inputVal = answerInput.value.trim();
+      if (!inputVal) {
+        alert("請輸入英文答案！");
+        return;
+      }
+
+      const targetVal = questions[currentStep].en.trim();
+      const isCorrect = (inputVal === targetVal);
+
+      if (isCorrect) score += 1;
+
+      userAnswers.push({
+        cn: questions[currentStep].cn,
+        target: targetVal,
+        user: inputVal,
+        isCorrect: isCorrect
+      });
+
+      currentStep++;
+      showQuestion();
+    }
+
+    function finishGame() {
+      document.getElementById('game-card').classList.add('hidden');
+      document.getElementById('result-card').classList.remove('hidden');
+
+      document.getElementById('result-user-info').innerHTML = `
+        <strong>員工編號：</strong> ${userData.empId} &nbsp;|&nbsp; <strong>Team：</strong> ${userData.team}
+      `;
+      document.getElementById('final-score').textContent = score;
+
+      const wrongAnswers = userAnswers.filter(a => !a.isCorrect);
+      const errorContainer = document.getElementById('error-container');
+
+      let errorSummaryString = "";
+
+      if (wrongAnswers.length === 0) {
+        errorContainer.innerHTML = `<div class="all-correct">🎉 恭喜！全對答對！獲得滿分 39 分！</div>`;
+        errorSummaryString = "無錯處 (全對)";
+      } else {
+        let errorHtml = `
+          <div class="error-section-title">錯處列表 (共答錯 ${wrongAnswers.length} 題)</div>
+          <table class="score-table">
+            <tr>
+              <th>題目 (中文)</th>
+              <th>你的錯誤答案</th>
+              <th>正確標準答案</th>
+            </tr>
+        `;
+
+        wrongAnswers.forEach(item => {
+          errorHtml += `
+            <tr class="wrong-row">
+              <td>${item.cn}</td>
+              <td class="user-wrong">${escapeHtml(item.user)}</td>
+              <td class="correct-ans">${item.target}</td>
+            </tr>
+          `;
+          errorSummaryString += `[${item.cn} | 填寫: ${item.user} | 正確: ${item.target}] `;
+        });
+
+        errorHtml += `</table>`;
+        errorContainer.innerHTML = errorHtml;
+      }
+
+      // 自動上傳資料至 bqegate@gmail.com 的 Google Sheet
+      sendResultToGoogleDrive(errorSummaryString);
+    }
+
+    function sendResultToGoogleDrive(errorDetails) {
+      const uploadStatus = document.getElementById('upload-status');
+      
+      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE") {
+        uploadStatus.style.color = "red";
+        uploadStatus.textContent = "⚠️ 尚未設定 Google Script URL，資料僅顯示於本頁，未儲存至雲端。";
+        return;
+      }
+
+      const payload = {
+        timestamp: new Date().toLocaleString("zh-TW", {timeZone: "Asia/Hong_Kong"}),
+        employeeId: userData.empId,
+        team: userData.team,
+        score: score,
+        errors: errorDetails
+      };
+
+      fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      .then(() => {
+        uploadStatus.style.color = "green";
+        uploadStatus.textContent = "✅ 測驗結果已成功同步至 bqegate@gmail.com 雲端硬碟！";
+      })
+      .catch(error => {
+        uploadStatus.style.color = "red";
+        uploadStatus.textContent = "❌ 上傳失敗，請檢查網路連線。";
+        console.error("Upload error:", error);
+      });
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>
