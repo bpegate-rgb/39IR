@@ -261,38 +261,38 @@
       sendResultToGoogleDrive(errorSummaryString);
     }
 
-   function sendResultToGoogleDrive(errorDetails) {
+  function sendResultToGoogleDrive(errorDetails) {
   const uploadStatus = document.getElementById('upload-status');
   
-  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxCIVMWWJPUlElu9YOArb60TvZVu6uCx7eLVK8wGuxUAuuTqdN21FhBwl5jit5_lSlj2A/exec")) {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("您的Google_Script_URL")) {
     uploadStatus.style.color = "red";
-    uploadStatus.textContent = "⚠️ 尚未設定有效的 Google Script URL，資料無法存入雲端。";
+    uploadStatus.textContent = "⚠️ 尚未設定有效的 Google Script URL。";
     return;
   }
 
-  const payload = {
+  // 將資料轉為 URL 參數，利用 Image 或 GET 請求發送以避免 CORS 阻擋
+  const params = new URLSearchParams({
     timestamp: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Hong_Kong" }),
     employeeId: userData.empId,
     team: userData.team,
     score: score,
     errors: errorDetails
-  };
-
-  // 使用 text/plain 避免跨網域預檢 (CORS preflight) 被拒絕
-  fetch(GOOGLE_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload)
-  })
-  .then(response => {
-    uploadStatus.style.color = "green";
-    uploadStatus.textContent = "✅ 測驗結果已成功同步至 bqegate@gmail.com 雲端硬碟！";
-  })
-  .catch(error => {
-    uploadStatus.style.color = "red";
-    uploadStatus.textContent = "❌ 上傳失敗，請檢查網路連線或 Apps Script 權限。";
-    console.error("Upload error:", error);
   });
+
+  const fullUrl = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
+
+  // 使用 GET 請求發送（GAS 的 GET 不會觸發瀏覽器 CORS 阻擋）
+  fetch(fullUrl, { method: "GET", mode: "no-cors" })
+    .then(() => {
+      uploadStatus.style.color = "green";
+      uploadStatus.textContent = "✅ 測驗結果已成功同步至雲端試算表！";
+    })
+    .catch(error => {
+      uploadStatus.style.color = "red";
+      uploadStatus.textContent = "❌ 上傳失敗，請檢查網路連線。";
+      console.error("Upload error:", error);
+    });
+}
 }
     function escapeHtml(text) {
       return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
