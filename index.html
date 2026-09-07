@@ -257,48 +257,43 @@
         errorContainer.innerHTML = errorHtml;
       }
 
-      // 自動上傳資料至 bqegate@gmail.com 的 Google Sheet
       sendResultToGoogleDrive(errorSummaryString);
     }
 
-  function sendResultToGoogleDrive(errorDetails) {
-  const uploadStatus = document.getElementById('upload-status');
-  
-  const params = new URLSearchParams({
-    timestamp: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Hong_Kong" }),
-    employeeId: userData.empId,
-    team: userData.team,
-    score: score,
-    errors: errorDetails
-  });
+    function sendResultToGoogleDrive(errorDetails) {
+      const uploadStatus = document.getElementById('upload-status');
+      
+      const params = new URLSearchParams({
+        timestamp: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Hong_Kong" }),
+        employeeId: userData.empId,
+        team: userData.team,
+        score: score,
+        errors: errorDetails
+      });
 
-  const fullUrl = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
+      const fullUrl = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
 
-  // 利用建立隱藏的 Image 或 fetch配合 no-cors 發送
-  fetch(fullUrl, { method: "GET", mode: "no-cors" })
-    .then(() => {
-      uploadStatus.style.color = "green";
-      uploadStatus.textContent = "✅ 測驗結果已成功同步至雲端試算表！";
-    })
-    .catch(err => {
-      // 備用方案：如果 fetch 失敗，使用隱藏 iframe 強制發送
-      try {
-        let iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = fullUrl;
-        document.body.appendChild(iframe);
-        uploadStatus.style.color = "green";
-        uploadStatus.textContent = "✅ 測驗結果已透過備用通道同步至雲端！";
-      } catch (e) {
-        uploadStatus.style.color = "red";
-        uploadStatus.textContent = "❌ 上傳失敗，請確認網路或 GAS 部署設定。";
-      }
-    });
-}
-}
+      fetch(fullUrl, { method: "GET", mode: "no-cors" })
+        .then(() => {
+          uploadStatus.style.color = "green";
+          uploadStatus.textContent = "✅ 測驗結果已成功同步至雲端試算表！";
+        })
+        .catch(err => {
+          try {
+            let iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = fullUrl;
+            document.body.appendChild(iframe);
+            uploadStatus.style.color = "green";
+            uploadStatus.textContent = "✅ 測驗結果已透過備用通道同步至雲端！";
+          } catch (e) {
+            uploadStatus.style.color = "red";
+            uploadStatus.textContent = "❌ 上傳失敗，請確認網路或 GAS 部署設定。";
+          }
+        });
+    }
+
     function escapeHtml(text) {
       return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
   </script>
-</body>
-</html>
