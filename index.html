@@ -99,7 +99,7 @@
 
   <script>
     // ⚠️ 請在此處貼上剛才從 Google Apps Script 取得的部署 URL
-    const GOOGLE_SCRIPT_URL = "https://docs.google.com/spreadsheets/d/1-S9B4Yhx6Zb7bxpoSnVKxwoLtup72G2NOsaBEtmbaMw/edit?gid=0#gid=0";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/u/0/home/projects/1gS6SEZlijQwKEF3H-wygPLnLuaVa48nuoEGvSwpnQZqwaV0CJ0EC3I3c/edit";
 
     const questions = [
       { id: 1, cn: "1. 出發地不是香港", en: "Origin Not HKG" },
@@ -264,7 +264,7 @@
     function sendResultToGoogleDrive(errorDetails) {
       const uploadStatus = document.getElementById('upload-status');
       
-      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === "https://docs.google.com/spreadsheets/d/1-S9B4Yhx6Zb7bxpoSnVKxwoLtup72G2NOsaBEtmbaMw/edit?gid=0#gid=0") {
+      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === "https://script.google.com/u/0/home/projects/1gS6SEZlijQwKEF3H-wygPLnLuaVa48nuoEGvSwpnQZqwaV0CJ0EC3I3c/edit") {
         uploadStatus.style.color = "red";
         uploadStatus.textContent = "⚠️ 尚未設定 Google Script URL，資料僅顯示於本頁，未儲存至雲端。";
         return;
