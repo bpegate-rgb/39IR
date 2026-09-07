@@ -99,7 +99,7 @@
 
   <script>
     // ⚠️ 請在此處貼上剛才從 Google Apps Script 取得的部署 URL
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxul_oO_uUun7m-3UpZwITK_RA17whDXFJHiOhGpXklMg8ijX_TJK3-aTTcgVsQSNNHVw/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCIVMWWJPUlElu9YOArb60TvZVu6uCx7eLVK8wGuxUAuuTqdN21FhBwl5jit5_lSlj2A/exec";
 
     const questions = [
       { id: 1, cn: "1. 出發地不是香港", en: "Origin Not HKG" },
@@ -264,7 +264,7 @@
    function sendResultToGoogleDrive(errorDetails) {
   const uploadStatus = document.getElementById('upload-status');
   
-  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxul_oO_uUun7m-3UpZwITK_RA17whDXFJHiOhGpXklMg8ijX_TJK3-aTTcgVsQSNNHVw/exec")) {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxCIVMWWJPUlElu9YOArb60TvZVu6uCx7eLVK8wGuxUAuuTqdN21FhBwl5jit5_lSlj2A/exec")) {
     uploadStatus.style.color = "red";
     uploadStatus.textContent = "⚠️ 尚未設定有效的 Google Script URL，資料無法存入雲端。";
     return;
