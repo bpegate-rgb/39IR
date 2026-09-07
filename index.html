@@ -261,40 +261,39 @@
       sendResultToGoogleDrive(errorSummaryString);
     }
 
-    function sendResultToGoogleDrive(errorDetails) {
-      const uploadStatus = document.getElementById('upload-status');
-      
-      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === "https://script.google.com/u/0/home/projects/1gS6SEZlijQwKEF3H-wygPLnLuaVa48nuoEGvSwpnQZqwaV0CJ0EC3I3c/edit") {
-        uploadStatus.style.color = "red";
-        uploadStatus.textContent = "⚠️ 尚未設定 Google Script URL，資料僅顯示於本頁，未儲存至雲端。";
-        return;
-      }
+   function sendResultToGoogleDrive(errorDetails) {
+  const uploadStatus = document.getElementById('upload-status');
+  
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("https://script.google.com/u/0/home/projects/1gS6SEZlijQwKEF3H-wygPLnLuaVa48nuoEGvSwpnQZqwaV0CJ0EC3I3c/edit")) {
+    uploadStatus.style.color = "red";
+    uploadStatus.textContent = "⚠️ 尚未設定有效的 Google Script URL，資料無法存入雲端。";
+    return;
+  }
 
-      const payload = {
-        timestamp: new Date().toLocaleString("zh-TW", {timeZone: "Asia/Hong_Kong"}),
-        employeeId: userData.empId,
-        team: userData.team,
-        score: score,
-        errors: errorDetails
-      };
+  const payload = {
+    timestamp: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Hong_Kong" }),
+    employeeId: userData.empId,
+    team: userData.team,
+    score: score,
+    errors: errorDetails
+  };
 
-      fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      })
-      .then(() => {
-        uploadStatus.style.color = "green";
-        uploadStatus.textContent = "✅ 測驗結果已成功同步至 bqegate@gmail.com 雲端硬碟！";
-      })
-      .catch(error => {
-        uploadStatus.style.color = "red";
-        uploadStatus.textContent = "❌ 上傳失敗，請檢查網路連線。";
-        console.error("Upload error:", error);
-      });
-    }
-
+  // 使用 text/plain 避免跨網域預檢 (CORS preflight) 被拒絕
+  fetch(GOOGLE_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  })
+  .then(response => {
+    uploadStatus.style.color = "green";
+    uploadStatus.textContent = "✅ 測驗結果已成功同步至 bqegate@gmail.com 雲端硬碟！";
+  })
+  .catch(error => {
+    uploadStatus.style.color = "red";
+    uploadStatus.textContent = "❌ 上傳失敗，請檢查網路連線或 Apps Script 權限。";
+    console.error("Upload error:", error);
+  });
+}
     function escapeHtml(text) {
       return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
