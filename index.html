@@ -39,17 +39,25 @@
     <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
     
     <div class="form-group">
-      <label for="emp-id">員工編號 (Employee ID)</label>
+      <label for="emp-id">UI </label>
       <input type="text" id="emp-id" placeholder="例如：EMP12345">
     </div>
     <div class="form-group">
-      <label for="team-id">團隊 (Team)</label>
+      <label for="team-id">Team </label>
       <select id="team-id">
         <option value="">-- 請選擇 Team --</option>
-        <option value="Operation">Operation</option>
-        <option value="IT Support">IT Support</option>
-        <option value="Customer Service">Customer Service</option>
-        <option value="Security">Security</option>
+        <option value="T1-Team1">T1-Team1</option>
+        <option value="T1-Team2">T1-Team2</option>
+        <option value="T1-Team3">T1-Team3</option>
+        <option value="T1-Team4">T1-Team4</option>
+        <option value="T1-Team5">T1-Team5</option>
+        <option value="T1-Team6">T1-Team6</option>
+        <option value="T2-Team1">T2-Team1</option>
+        <option value="T2-Team2">T2-Team2</option>
+        <option value="T2-Team3">T2-Team3</option>
+        <option value="T2-Team4">T2-Team4</option>
+        <option value="T2-Team5">T2-Team5</option>
+        <option value="T2-Team6">T2-Team6</option>
       </select>
     </div>
     <button onclick="startGame()">開始測驗</button>
@@ -65,7 +73,7 @@
     <div class="prompt" id="chinese-prompt">中文提示：---</div>
     
     <div class="form-group">
-      <label for="answer-input">輸入對應英文系統訊息（禁止貼上）：</label>
+      <label for="answer-input">輸入對應英文IR（禁止貼上）：</label>
       <input type="text" id="answer-input" autocomplete="off" placeholder="請在此輸入英文..." onkeydown="handleKeyPress(event)">
       <div id="paste-warning" class="warning">⚠️ 為確保公平，本測驗已禁用貼上 (Paste) 功能！請手動輸入。</div>
     </div>
@@ -91,7 +99,7 @@
 
   <script>
     // ⚠️ 請在此處貼上剛才從 Google Apps Script 取得的部署 URL
-    const GOOGLE_SCRIPT_URL = "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE";
+    const GOOGLE_SCRIPT_URL = "https://docs.google.com/spreadsheets/d/1-S9B4Yhx6Zb7bxpoSnVKxwoLtup72G2NOsaBEtmbaMw/edit?gid=0#gid=0";
 
     const questions = [
       { id: 1, cn: "1. 出發地不是香港", en: "Origin Not HKG" },
@@ -161,7 +169,7 @@
       const team = document.getElementById('team-id').value;
 
       if (!empId || !team) {
-        alert("請填寫員工編號並選擇 Team！");
+        alert("請填寫UI並選擇 Team！");
         return;
       }
 
@@ -186,7 +194,7 @@
     function submitAnswer() {
       const inputVal = answerInput.value.trim();
       if (!inputVal) {
-        alert("請輸入英文答案！");
+        alert("請輸入英文IR答案！");
         return;
       }
 
@@ -211,7 +219,7 @@
       document.getElementById('result-card').classList.remove('hidden');
 
       document.getElementById('result-user-info').innerHTML = `
-        <strong>員工編號：</strong> ${userData.empId} &nbsp;|&nbsp; <strong>Team：</strong> ${userData.team}
+        <strong>UI：</strong> ${userData.empId} &nbsp;|&nbsp; <strong>Team：</strong> ${userData.team}
       `;
       document.getElementById('final-score').textContent = score;
 
@@ -256,7 +264,7 @@
     function sendResultToGoogleDrive(errorDetails) {
       const uploadStatus = document.getElementById('upload-status');
       
-      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE") {
+      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === "https://docs.google.com/spreadsheets/d/1-S9B4Yhx6Zb7bxpoSnVKxwoLtup72G2NOsaBEtmbaMw/edit?gid=0#gid=0") {
         uploadStatus.style.color = "red";
         uploadStatus.textContent = "⚠️ 尚未設定 Google Script URL，資料僅顯示於本頁，未儲存至雲端。";
         return;
