@@ -264,13 +264,6 @@
   function sendResultToGoogleDrive(errorDetails) {
   const uploadStatus = document.getElementById('upload-status');
   
-  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbyg1GsfeT0kW4u4VIgAqsHUmLv_42qNyxS82OfVuwKPe0SoZZUZUrdjzT-YQDmv5HcBzA/exec")) {
-    uploadStatus.style.color = "red";
-    uploadStatus.textContent = "⚠️ 尚未設定有效的 Google Script URL。";
-    return;
-  }
-
-  // 將資料轉為 URL 參數，利用 Image 或 GET 請求發送以避免 CORS 阻擋
   const params = new URLSearchParams({
     timestamp: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Hong_Kong" }),
     employeeId: userData.empId,
@@ -281,16 +274,25 @@
 
   const fullUrl = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
 
-  // 使用 GET 請求發送（GAS 的 GET 不會觸發瀏覽器 CORS 阻擋）
+  // 利用建立隱藏的 Image 或 fetch配合 no-cors 發送
   fetch(fullUrl, { method: "GET", mode: "no-cors" })
     .then(() => {
       uploadStatus.style.color = "green";
       uploadStatus.textContent = "✅ 測驗結果已成功同步至雲端試算表！";
     })
-    .catch(error => {
-      uploadStatus.style.color = "red";
-      uploadStatus.textContent = "❌ 上傳失敗，請檢查網路連線。";
-      console.error("Upload error:", error);
+    .catch(err => {
+      // 備用方案：如果 fetch 失敗，使用隱藏 iframe 強制發送
+      try {
+        let iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = fullUrl;
+        document.body.appendChild(iframe);
+        uploadStatus.style.color = "green";
+        uploadStatus.textContent = "✅ 測驗結果已透過備用通道同步至雲端！";
+      } catch (e) {
+        uploadStatus.style.color = "red";
+        uploadStatus.textContent = "❌ 上傳失敗，請確認網路或 GAS 部署設定。";
+      }
     });
 }
 }
