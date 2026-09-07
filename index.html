@@ -192,21 +192,21 @@
     }
 
     function submitAnswer() {
-      const inputVal = answerInput.value.trim();
+      const inputVal = answerInput.value.trim().toLowerCase();
       if (!inputVal) {
         alert("請輸入英文IR答案！");
         return;
       }
 
-      const targetVal = questions[currentStep].en.trim();
+      const targetVal = questions[currentStep].en.trim().toLowerCase();
       const isCorrect = (inputVal === targetVal);
 
       if (isCorrect) score += 1;
 
       userAnswers.push({
         cn: questions[currentStep].cn,
-        target: targetVal,
-        user: inputVal,
+        target: questions[currentStep].en.trim(), // 記錄原本標準答案的大小寫格式以便顯示
+        user: answerInput.value.trim(),           // 記錄使用者原本輸入的格式
         isCorrect: isCorrect
       });
 
