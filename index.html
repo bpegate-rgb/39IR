@@ -35,7 +35,7 @@
   <!-- 階段 1：員工資料登記 -->
   <div id="login-card" class="card">
     <h2> Egate 39 IR Quiz </h2>
-    <p style="color: #666; font-size: 14px;">共 39 題，每題 1 分。結果將自動同步至雲端記錄。</p>
+    <p style="color: #666; font-size: 14px;">共 39 題，每題 1 分。題目順序已隨機打亂，結果將自動同步至雲端記錄。</p>
     <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
     
     <div class="form-group">
@@ -98,7 +98,6 @@
   </div>
 
  <script>
-    // ⚠️ 請在此處貼上剛才從 Google Apps Script 取得的部署 URL
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxH5AYu5x7mvtFq6BYk0OcOIpx5B9MORdgA4Rg-z2KSCf4GWFXyb94Q5LN6AkWHtb5zhw/exec";
 
     const questions = [
@@ -135,7 +134,7 @@
       { id: 31, cn: "31. 不間斷電源系統回復待命狀態", en: "UPS Resume" },
       { id: 32, cn: "32. 非電子旅行證件", en: "Non-e Travel Document" },
       { id: 33, cn: "33. 機器故障", en: "Device Error" },
-      { id: 34, cn: "34. 名字缺一且與姓氏錯
+      { id: 34, cn: "34. 名字缺失且與姓氏錯
 位", en: "Family/ Given name swapping for short name combination" },
       { id: 35, cn: "35. 名字缺一", en: "Part of Given name is missing" },
       { id: 36, cn: "36. 無姓氏", en: "Substitute Family name by NLN" },
@@ -144,6 +143,7 @@
       { id: 39, cn: "39. 只接受傳統登機證", en: "Self-Print Or Mobile Boarding Pass" }
     ];
 
+    let activeQuestions = [];
     let currentStep = 0;
     let score = 0;
     let userAnswers = [];
@@ -175,16 +175,24 @@
       }
 
       userData = { empId, team };
+
+      // 使用 Fisher-Yates 隨機打亂題目順序
+      activeQuestions = [...questions];
+      for (let i = activeQuestions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [activeQuestions[i], activeQuestions[j]] = [activeQuestions[j], activeQuestions[i]];
+      }
+
       document.getElementById('login-card').classList.add('hidden');
       document.getElementById('game-card').classList.remove('hidden');
       showQuestion();
     }
 
     function showQuestion() {
-      if (currentStep < questions.length) {
-        document.getElementById('progress-text').textContent = `進度：${currentStep + 1} / ${questions.length} 題`;
+      if (currentStep < activeQuestions.length) {
+        document.getElementById('progress-text').textContent = `進度：${currentStep + 1} / ${activeQuestions.length} 題`;
         document.getElementById('current-score-text').textContent = `當前分數：${score} 分`;
-        document.getElementById('chinese-prompt').textContent = questions[currentStep].cn;
+        document.getElementById('chinese-prompt').textContent = activeQuestions[currentStep].cn;
         answerInput.value = '';
         answerInput.focus();
       } else {
@@ -199,9 +207,9 @@
         return;
       }
 
-      // 移除標點符號與統一空白後再進行比對
+      // 自動移除標點符號與多餘空白比對
       const cleanInput = rawInput.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()><]/g, "").replace(/\s+/g, " ").toLowerCase();
-      const targetStr = questions[currentStep].en;
+      const targetStr = activeQuestions[currentStep].en;
       const cleanTarget = targetStr.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()><]/g, "").replace(/\s+/g, " ").toLowerCase();
       
       const isCorrect = (cleanInput === cleanTarget);
@@ -209,9 +217,9 @@
       if (isCorrect) score += 1;
 
       userAnswers.push({
-        cn: questions[currentStep].cn,
-        target: targetStr.trim(),         // 記錄原本標準答案格式
-        user: rawInput,                   // 記錄使用者實際輸入的內容
+        cn: activeQuestions[currentStep].cn,
+        target: targetStr.trim(),
+        user: rawInput,
         isCorrect: isCorrect
       });
 
@@ -302,3 +310,5 @@
       return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
   </script>
+</body>
+</html>
