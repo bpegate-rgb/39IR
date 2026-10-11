@@ -37,8 +37,8 @@
 
   <!-- 階段 1：員工資料登記 -->
   <div id="login-card" class="card">
-    <h2> Egate 39 IR Quiz </h2>
-    <p style="color: #666; font-size: 14px;">共 39 題，每題 1 分。限時 20 分鐘。題目順序已隨機打亂，結果將自動同步至雲端記錄。</p>
+    <h2> Egate 40 IR Quiz </h2>
+    <p style="color: #666; font-size: 14px;">共 40 題，每題 1 分。限時 20 分鐘。題目順序已隨機打亂，結果將自動同步至雲端記錄。</p>
     <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
     
     <div class="form-group">
@@ -69,7 +69,7 @@
   <!-- 階段 2：拼字遊戲畫面 -->
   <div id="game-card" class="card hidden">
     <div class="progress">
-      <span id="progress-text">進度：1 / 39 題</span>
+      <span id="progress-text">進度：1 / 40 題</span>
       <span id="timer-display" class="timer-badge">⏳ 剩餘時間：20:00</span>
     </div>
     
@@ -91,7 +91,7 @@
     
     <div class="summary-box">
       <p id="result-user-info" style="margin: 0 0 10px 0;"></p>
-      <div>總分：<span id="final-score" class="score-badge">0</span> / 39 分</div>
+      <div>總分：<span id="final-score" class="score-badge">0</span> / 40 分</div>
       <div id="time-spent-text" style="margin-top: 5px; font-weight: bold; color: #555;"></div>
       <div id="upload-status" class="status-msg">正在上傳結果至雲端...</div>
     </div>
@@ -145,6 +145,7 @@
       { id: 37, cn: "無名字", en: "Substitute Given name by NFN" },
       { id: 38, cn: "航班即將起飛 - 30mins 內起飛", en: "Flight Almost Depart" },
       { id: 39, cn: "只接受傳統登機證", en: "Self-Print Or Mobile Boarding Pass" }
+      { id: 40, cn: "使用他人的登機證憑證", en: "Using Another Person's Token" }
     ];
 
     let activeQuestions = [];
@@ -299,7 +300,7 @@
       let errorSummaryString = "";
 
       if (wrongAnswers.length === 0) {
-        errorContainer.innerHTML = `<div class="all-correct">🎉 恭喜！全對答對！獲得滿分 39 分！</div>`;
+        errorContainer.innerHTML = `<div class="all-correct">🎉 恭喜！全對答對！獲得滿分 40 分！</div>`;
         errorSummaryString = "無錯處 (全對)";
       } else {
         let errorHtml = `
