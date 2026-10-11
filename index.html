@@ -78,7 +78,7 @@
     
     <div class="form-group">
       <label for="answer-input">輸入對應英文IR（禁止貼上）：</label>
-      <input type="text" id="answer-input" autocomplete="off" placeholder="請在此輸入英文..." onkeydown="handleKeyPress(event)">
+      <input type="text" id="answer-input" autocomplete="off" placeholder="英文不分大小寫，可省略 - 符號" onkeydown="handleKeyPress(event)">
       <div id="paste-warning" class="warning">⚠️ 為確保公平，本測驗已禁用貼上 (Paste) 功能！請手動輸入。</div>
     </div>
     
@@ -145,7 +145,7 @@
       { id: 37, cn: "無名字", en: "Substitute Given name by NFN" },
       { id: 38, cn: "航班即將起飛 - 30mins 內起飛", en: "Flight Almost Depart" },
       { id: 39, cn: "只接受傳統登機證", en: "Self-Print Or Mobile Boarding Pass" },
-      { id: 40, cn: "使用他人的登機證憑證", en: "Using Another Person's Token" }
+      { id: 40, cn: "使用他人的登機證", en: "Using Another Person's Token" }
     ];
 
     let activeQuestions = [];
@@ -247,6 +247,10 @@
       }
     }
 
+    // 保留原有忽略標點的規則，並在清理後移除首尾空白。
+    function normalizeAnswer(value) {
+      return value.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+    }
     function submitAnswer() {
       const rawInput = answerInput.value.trim();
       if (!rawInput) {
@@ -254,10 +258,10 @@
         return;
       }
 
-      // 自動移除所有標點與特殊符號，並轉為小寫做比對（不區分大小寫、不區分標點）
-      const cleanInput = rawInput.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, " ").toLowerCase();
+      // 使用相同規則處理作答與標準答案：不分大小寫，省略「-」亦可。
+      const cleanInput = normalizeAnswer(rawInput);
       const targetStr = activeQuestions[currentStep].en;
-      const cleanTarget = targetStr.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, " ").toLowerCase();
+      const cleanTarget = normalizeAnswer(targetStr);
       
       const isCorrect = (cleanInput === cleanTarget);
 
