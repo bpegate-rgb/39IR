@@ -145,7 +145,7 @@
       { id: 37, cn: "無名字", en: "Substitute Given name by NFN" },
       { id: 38, cn: "航班即將起飛 - 30mins 內起飛", en: "Flight Almost Depart" },
       { id: 39, cn: "只接受傳統登機證", en: "Self-Print Or Mobile Boarding Pass" },
-      { id: 40, cn: "使用他人的登機證", en: "Using Another Person's Token" }
+      { id: 40, cn: "使用他人的登機證憑證", en: "Using Another Person's Token" }
     ];
 
     let activeQuestions = [];
@@ -254,7 +254,7 @@
         return;
       }
 
-      // 自動移除所有非英數字元（如標點符號、引號、括號、橫線等），只保留字母、數字與空白來比對
+      // 自動移除所有標點與特殊符號，並轉為小寫做比對（不區分大小寫、不區分標點）
       const cleanInput = rawInput.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, " ").toLowerCase();
       const targetStr = activeQuestions[currentStep].en;
       const cleanTarget = targetStr.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, " ").toLowerCase();
@@ -370,5 +370,4 @@
     }
   </script>
 </body>
-</html>
 </html>
