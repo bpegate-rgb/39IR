@@ -78,7 +78,7 @@
     
     <div class="form-group">
       <label for="answer-input">輸入對應英文IR（禁止貼上）：</label>
-      <input type="text" id="answer-input" autocomplete="off" placeholder="英文不分大小寫，可省略 - 符號" onkeydown="handleKeyPress(event)">
+      <input type="text" id="answer-input" autocomplete="off" placeholder="不分大小寫，忽略空格及標點符號" onkeydown="handleKeyPress(event)">
       <div id="paste-warning" class="warning">⚠️ 為確保公平，本測驗已禁用貼上 (Paste) 功能！請手動輸入。</div>
     </div>
     
@@ -247,9 +247,9 @@
       }
     }
 
-    // 保留原有忽略標點的規則，並在清理後移除首尾空白。
+    // 只比較英文字母及數字：忽略大小寫、所有空白與標點符號。
     function normalizeAnswer(value) {
-      return value.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+      return value.toLowerCase().replace(/[^a-z0-9]/g, "");
     }
     function submitAnswer() {
       const rawInput = answerInput.value.trim();
@@ -258,7 +258,7 @@
         return;
       }
 
-      // 使用相同規則處理作答與標準答案：不分大小寫，省略「-」亦可。
+      // 作答與標準答案均忽略大小寫、空白及標點後再比較。
       const cleanInput = normalizeAnswer(rawInput);
       const targetStr = activeQuestions[currentStep].en;
       const cleanTarget = normalizeAnswer(targetStr);
