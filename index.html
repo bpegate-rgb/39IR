@@ -79,6 +79,7 @@
     <div class="form-group">
       <label for="answer-input">輸入對應英文IR（禁止貼上）：</label>
       <input type="text" id="answer-input" autocomplete="off" placeholder="不分大小寫，忽略空格及標點符號" onkeydown="handleKeyPress(event)">
+      <div class="status-msg">按標準答案的英文字母數計算：10 個或以下容許錯 1 個，多於 10 個容許錯 2 個（包括漏字母、多字母及換錯字母）。數字須正確。</div>
       <div id="paste-warning" class="warning">⚠️ 為確保公平，本測驗已禁用貼上 (Paste) 功能！請手動輸入。</div>
     </div>
     
@@ -103,7 +104,7 @@
   </div>
 
  <script>
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwKERJS9347U9q0EPFQPw7Rmbvh-LCXaRsXA85zz9LYWPT77QY8I3MHS76rnwgLM5hW1Q/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxH5AYu5x7mvtFq6BYk0OcOIpx5B9MORdgA4Rg-z2KSCf4GWFXyb94Q5LN6AkWHtb5zhw/exec";
 
     const questions = [
       { id: 1, cn: "出發地不是香港", en: "Origin Not HKG" },
@@ -145,7 +146,7 @@
       { id: 37, cn: "無名字", en: "Substitute Given name by NFN" },
       { id: 38, cn: "航班即將起飛 - 30mins 內起飛", en: "Flight Almost Depart" },
       { id: 39, cn: "只接受傳統登機證", en: "Self-Print Or Mobile Boarding Pass" },
-      { id: 40, cn: "使用他人的登機證憑證", en: "Using Another Person's Token" }
+      { id: 40, cn: "使用他人的登機證", en: "Using Another Person's Token" }
     ];
 
     let activeQuestions = [];
@@ -251,6 +252,37 @@
     function normalizeAnswer(value) {
       return value.toLowerCase().replace(/[^a-z0-9]/g, "");
     }
+
+    // Levenshtein 距離：每次新增、刪除或替換一個字元計作一個錯誤。
+    function editDistance(input, target) {
+      let previous = Array.from({ length: target.length + 1 }, (_, index) => index);
+      for (let i = 1; i <= input.length; i++) {
+        const current = [i];
+        for (let j = 1; j <= target.length; j++) {
+          current[j] = Math.min(
+            previous[j] + 1,
+            current[j - 1] + 1,
+            previous[j - 1] + (input[i - 1] === target[j - 1] ? 0 : 1)
+          );
+        }
+        previous = current;
+      }
+      return previous[target.length];
+    }
+
+    function isAnswerCorrect(input, target) {
+      const cleanInput = normalizeAnswer(input);
+      const cleanTarget = normalizeAnswer(target);
+      const letterCount = cleanTarget.replace(/[^a-z]/g, "").length;
+      const allowedErrors = letterCount <= 10 ? 1 : 2;
+
+      // 容錯只適用於英文字母，數字仍須與標準答案相同。
+      if (!cleanInput || cleanInput.replace(/[^0-9]/g, "") !== cleanTarget.replace(/[^0-9]/g, "")) {
+        return false;
+      }
+      return editDistance(cleanInput, cleanTarget) <= allowedErrors;
+    }
+
     function submitAnswer() {
       const rawInput = answerInput.value.trim();
       if (!rawInput) {
@@ -258,12 +290,8 @@
         return;
       }
 
-      // 作答與標準答案均忽略大小寫、空白及標點後再比較。
-      const cleanInput = normalizeAnswer(rawInput);
       const targetStr = activeQuestions[currentStep].en;
-      const cleanTarget = normalizeAnswer(targetStr);
-      
-      const isCorrect = (cleanInput === cleanTarget);
+      const isCorrect = isAnswerCorrect(rawInput, targetStr);
 
       if (isCorrect) score += 1;
 
