@@ -26,8 +26,18 @@
     .score-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     .score-table th, .score-table td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
     .score-table th { background-color: #f2f2f2; }
-    .wrong-row { background-color: #fff5f5; }
-    .user-wrong { color: #d9534f; font-weight: bold; text-decoration: line-through; }
+    .wrong-row { background-color: #fff0a6; }
+    .wrong-row td { border-color: #e0b84b; }
+    .wrong-row td:first-child { border-left: 5px solid #e39a00; }
+    .answer-text { color: #243246; line-height: 1.7; overflow-wrap: anywhere; }
+    .letter-error { color: #c41725; font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+    .missing-letter { background: #ffe5e8; border-radius: 3px; padding: 0 3px; font-size: 13px; }
+    .review-scroll { overflow-x: auto; }
+    .review-status { min-width: 80px; }
+    .result-badge { display: inline-block; padding: 3px 7px; border-radius: 4px; font-weight: bold; white-space: nowrap; }
+    .tolerated-badge { color: #176b3a; background: #e6f4ea; }
+    .wrong-badge { color: #8a3100; background: #ffdb69; }
+    .review-note { font-size: 13px; color: #555; line-height: 1.7; margin: 6px 0 12px; }
     .correct-ans { color: #28a745; font-weight: bold; }
     .all-correct { background-color: #e6f4ea; color: #137333; padding: 15px; border-radius: 6px; font-weight: bold; text-align: center; margin-top: 15px; }
     .status-msg { font-size: 13px; color: #666; margin-top: 5px; }
@@ -283,6 +293,108 @@
       return editDistance(cleanInput, cleanTarget) <= allowedErrors;
     }
 
+    // 將正規化後的比對位置對應回原始作答，保留原有大小寫、空格及標點。
+    function answerTokens(value) {
+      const chars = Array.from(value);
+      const tokens = [];
+      chars.forEach((char, position) => {
+        const normalized = char.toLowerCase();
+        if (/^[a-z0-9]$/.test(normalized)) tokens.push({ normalized, position });
+      });
+      return { chars, tokens };
+    }
+
+    function answerDifference(input, target) {
+      const source = answerTokens(input);
+      const standard = answerTokens(target);
+      const a = source.tokens;
+      const b = standard.tokens;
+      const distance = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+      for (let i = 0; i <= a.length; i++) distance[i][0] = i;
+      for (let j = 0; j <= b.length; j++) distance[0][j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          distance[i][j] = Math.min(
+            distance[i - 1][j] + 1,
+            distance[i][j - 1] + 1,
+            distance[i - 1][j - 1] + (a[i - 1].normalized === b[j - 1].normalized ? 0 : 1)
+          );
+        }
+      }
+
+      const sourceErrors = new Set();
+      const targetErrors = new Set();
+      const missing = new Map();
+      let i = a.length;
+      let j = b.length;
+      while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && a[i - 1].normalized === b[j - 1].normalized && distance[i][j] === distance[i - 1][j - 1]) {
+          i--; j--;
+        } else if (i > 0 && j > 0 && distance[i][j] === distance[i - 1][j - 1] + 1) {
+          sourceErrors.add(a[i - 1].position);
+          targetErrors.add(b[j - 1].position);
+          i--; j--;
+        } else if (i > 0 && distance[i][j] === distance[i - 1][j] + 1) {
+          sourceErrors.add(a[i - 1].position);
+          i--;
+        } else {
+          const position = i > 0 ? a[i - 1].position + 1 : (a.length ? a[0].position : 0);
+          const letter = standard.chars[b[j - 1].position];
+          missing.set(position, letter + (missing.get(position) || ''));
+          targetErrors.add(b[j - 1].position);
+          j--;
+        }
+      }
+
+      function render(chars, errors, omissions) {
+        let html = '';
+        for (let position = 0; position <= chars.length; position++) {
+          if (omissions && omissions.has(position)) {
+            html += `<span class="letter-error missing-letter">[漏：${escapeHtml(omissions.get(position))}]</span>`;
+          }
+          if (position < chars.length) {
+            const char = escapeHtml(chars[position]);
+            html += errors.has(position) ? `<span class="letter-error">${char}</span>` : char;
+          }
+        }
+        return html;
+      }
+      return {
+        count: distance[a.length][b.length],
+        userHtml: render(source.chars, sourceErrors, missing),
+        targetHtml: render(standard.chars, targetErrors)
+      };
+    }
+
+    function renderAnswerReview(answers) {
+      const reviewed = answers.map(item => ({ ...item, difference: answerDifference(item.user, item.target) }));
+      const wrong = reviewed.filter(item => !item.isCorrect);
+      const tolerated = reviewed.filter(item => item.isCorrect && item.difference.count > 0);
+      const visible = reviewed.filter(item => !item.isCorrect || item.difference.count > 0);
+      let html = wrong.length === 0
+        ? `<div class="all-correct">已作答的 ${answers.length} 題均判定答對${tolerated.length ? `（其中 ${tolerated.length} 題獲容錯判對）` : ''}。</div>`
+        : '';
+      if (visible.length > 0) {
+        html += `<div class="error-section-title">答案檢視：容錯答對 ${tolerated.length} 題・答錯 ${wrong.length} 題</div>
+          <p class="review-note">紅色字母表示換錯或多寫的字母；<span class="letter-error missing-letter">[漏：字母]</span> 表示漏寫。標準答案的相應字母亦會標紅。答錯題以黃色整行高亮；容錯答對仍獲 1 分。</p>
+          <div class="review-scroll"><table class="score-table">
+            <thead><tr><th>題目（中文）</th><th>你的答案</th><th>標準答案</th><th>判定</th></tr></thead><tbody>`;
+        visible.forEach(item => {
+          html += `<tr class="${item.isCorrect ? 'tolerated-row' : 'wrong-row'}">
+            <td>${escapeHtml(item.cn)}</td>
+            <td class="answer-text">${item.difference.userHtml}</td>
+            <td class="answer-text correct-ans">${item.difference.targetHtml}</td>
+            <td class="review-status"><span class="result-badge ${item.isCorrect ? 'tolerated-badge' : 'wrong-badge'}">${item.isCorrect ? '容錯答對' : '答錯'}</span><div class="status-msg">差異 ${item.difference.count} 個字元</div></td>
+          </tr>`;
+        });
+        html += '</tbody></table></div>';
+      }
+      return {
+        html,
+        errorSummaryString: wrong.length === 0 ? '無錯處 (全對)' : wrong.map(item => `[${item.cn} | 填寫: ${item.user} | 正確: ${item.target}] `).join('')
+      };
+    }
+
     function submitAnswer() {
       const rawInput = answerInput.value.trim();
       if (!rawInput) {
@@ -326,41 +438,10 @@
       document.getElementById('final-score').textContent = score;
       document.getElementById('time-spent-text').textContent = `⏱️ 測驗耗時：${timeSpentFormatted}`;
 
-      const wrongAnswers = userAnswers.filter(a => !a.isCorrect);
       const errorContainer = document.getElementById('error-container');
-
-      let errorSummaryString = "";
-
-      if (wrongAnswers.length === 0) {
-        errorContainer.innerHTML = `<div class="all-correct">🎉 恭喜！全對答對！獲得滿分 40 分！</div>`;
-        errorSummaryString = "無錯處 (全對)";
-      } else {
-        let errorHtml = `
-          <div class="error-section-title">錯處列表 (共答錯 ${wrongAnswers.length} 題)</div>
-          <table class="score-table">
-            <tr>
-              <th>題目 (中文)</th>
-              <th>你的錯誤答案</th>
-              <th>正確標準答案</th>
-            </tr>
-        `;
-
-        wrongAnswers.forEach(item => {
-          errorHtml += `
-            <tr class="wrong-row">
-              <td>${item.cn}</td>
-              <td class="user-wrong">${escapeHtml(item.user)}</td>
-              <td class="correct-ans">${item.target}</td>
-            </tr>
-          `;
-          errorSummaryString += `[${item.cn} | 填寫: ${item.user} | 正確: ${item.target}] `;
-        });
-
-        errorHtml += `</table>`;
-        errorContainer.innerHTML = errorHtml;
-      }
-
-      sendResultToGoogleDrive(errorSummaryString);
+      const review = renderAnswerReview(userAnswers);
+      errorContainer.innerHTML = review.html;
+      sendResultToGoogleDrive(review.errorSummaryString);
     }
 
     function sendResultToGoogleDrive(errorDetails) {
@@ -403,4 +484,3 @@
   </script>
 </body>
 </html>
-
