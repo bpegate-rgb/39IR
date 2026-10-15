@@ -37,6 +37,8 @@
     .result-badge { display: inline-block; padding: 3px 7px; border-radius: 4px; font-weight: bold; white-space: nowrap; }
     .tolerated-badge { color: #176b3a; background: #e6f4ea; }
     .wrong-badge { color: #8a3100; background: #ffdb69; }
+    .unanswered-row { background-color: #edf2f7; }
+    .unanswered-badge { color: #475569; background: #dce4ed; }
     .review-note { font-size: 13px; color: #555; line-height: 1.7; margin: 6px 0 12px; }
     .correct-ans { color: #28a745; font-weight: bold; }
     .all-correct { background-color: #e6f4ea; color: #137333; padding: 15px; border-radius: 6px; font-weight: bold; text-align: center; margin-top: 15px; }
@@ -366,32 +368,45 @@
       };
     }
 
-    function renderAnswerReview(answers) {
-      const reviewed = answers.map(item => ({ ...item, difference: answerDifference(item.user, item.target) }));
-      const wrong = reviewed.filter(item => !item.isCorrect);
+    function renderAnswerReview(answers, quizQuestions = []) {
+      // 依測驗題目順序補齊尚未提交的題目，不改動已作答記錄或分數。
+      const complete = quizQuestions.length > 0 ? quizQuestions.map((question, index) => answers[index] || {
+        cn: question.cn, target: question.en, user: '', isCorrect: false, isUnanswered: true
+      }) : answers;
+      const reviewed = complete.map(item => ({
+        ...item, difference: item.isUnanswered ? null : answerDifference(item.user, item.target)
+      }));
+      const unanswered = reviewed.filter(item => item.isUnanswered);
+      const wrong = reviewed.filter(item => !item.isUnanswered && !item.isCorrect);
       const tolerated = reviewed.filter(item => item.isCorrect && item.difference.count > 0);
-      const visible = reviewed.filter(item => !item.isCorrect || item.difference.count > 0);
-      let html = wrong.length === 0
+      const exact = reviewed.filter(item => item.isCorrect && item.difference.count === 0);
+      let html = reviewed.length > 0 && wrong.length === 0 && unanswered.length === 0
         ? `<div class="all-correct">已作答的 ${answers.length} 題均判定答對${tolerated.length ? `（其中 ${tolerated.length} 題獲容錯判對）` : ''}。</div>`
         : '';
-      if (visible.length > 0) {
-        html += `<div class="error-section-title">答案檢視：容錯答對 ${tolerated.length} 題・答錯 ${wrong.length} 題</div>
-          <p class="review-note">紅色字母表示換錯或多寫的字母；<span class="letter-error missing-letter">[漏：字母]</span> 表示漏寫。標準答案的相應字母亦會標紅。答錯題以黃色整行高亮；容錯答對仍獲 1 分。</p>
+      if (reviewed.length > 0) {
+        html += `<div class="error-section-title">全部 ${reviewed.length} 題答案</div>
+          <p class="review-note">完全答對 ${exact.length} 題・容錯答對 ${tolerated.length} 題・答錯 ${wrong.length} 題・未作答 ${unanswered.length} 題</p>
+          <p class="review-note">紅色字母表示換錯或多寫的字母；<span class="letter-error missing-letter">[漏：字母]</span> 表示漏寫。標準答案的相應字母亦會標紅。答錯題以黃色整行高亮；容錯答對仍獲 1 分。未作答題以灰色標示並列出正確答案，不計分。</p>
           <div class="review-scroll"><table class="score-table">
             <thead><tr><th>題目（中文）</th><th>你的答案</th><th>標準答案</th><th>判定</th></tr></thead><tbody>`;
-        visible.forEach(item => {
-          html += `<tr class="${item.isCorrect ? 'tolerated-row' : 'wrong-row'}">
+        reviewed.forEach(item => {
+          const rowClass = item.isUnanswered ? 'unanswered-row' : !item.isCorrect ? 'wrong-row' : item.difference.count > 0 ? 'tolerated-row' : 'correct-row';
+          const badgeClass = item.isUnanswered ? 'unanswered-badge' : item.isCorrect ? 'tolerated-badge' : 'wrong-badge';
+          const status = item.isUnanswered ? '未作答' : !item.isCorrect ? '答錯' : item.difference.count > 0 ? '容錯答對' : '完全答對';
+          html += `<tr class="${rowClass}">
             <td>${escapeHtml(item.cn)}</td>
-            <td class="answer-text">${item.difference.userHtml}</td>
-            <td class="answer-text correct-ans">${item.difference.targetHtml}</td>
-            <td class="review-status"><span class="result-badge ${item.isCorrect ? 'tolerated-badge' : 'wrong-badge'}">${item.isCorrect ? '容錯答對' : '答錯'}</span><div class="status-msg">差異 ${item.difference.count} 個字元</div></td>
+            <td class="answer-text">${item.isUnanswered ? '未作答' : item.difference.userHtml}</td>
+            <td class="answer-text correct-ans">${item.isUnanswered ? escapeHtml(item.target) : item.difference.targetHtml}</td>
+            <td class="review-status"><span class="result-badge ${badgeClass}">${status}</span>${item.isUnanswered ? '' : `<div class="status-msg">差異 ${item.difference.count} 個字元</div>`}</td>
           </tr>`;
         });
         html += '</tbody></table></div>';
       }
       return {
         html,
-        errorSummaryString: wrong.length === 0 ? '無錯處 (全對)' : wrong.map(item => `[${item.cn} | 填寫: ${item.user} | 正確: ${item.target}] `).join('')
+        errorSummaryString: wrong.length === 0 && unanswered.length === 0 ? '無錯處 (全對)' : reviewed.filter(item => !item.isCorrect).map(item =>
+          item.isUnanswered ? `[${item.cn} | 未作答 | 正確: ${item.target}] ` : `[${item.cn} | 填寫: ${item.user} | 正確: ${item.target}] `
+        ).join('')
       };
     }
 
@@ -439,7 +454,7 @@
       document.getElementById('time-spent-text').textContent = `⏱️ 測驗耗時：${timeSpentFormatted}`;
 
       const errorContainer = document.getElementById('error-container');
-      const review = renderAnswerReview(userAnswers);
+      const review = renderAnswerReview(userAnswers, activeQuestions);
       errorContainer.innerHTML = review.html;
       sendResultToGoogleDrive(review.errorSummaryString);
     }
