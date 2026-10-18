@@ -40,6 +40,8 @@
     .unanswered-row { background-color: #edf2f7; }
     .unanswered-badge { color: #475569; background: #dce4ed; }
     .review-note { font-size: 13px; color: #555; line-height: 1.7; margin: 6px 0 12px; }
+    .difference-note { margin-top: 8px; font-size: 13px; color: #7f1d1d; font-weight: normal; line-height: 1.6; }
+    .difference-note ul { margin: 3px 0 0; padding-left: 18px; }
     .correct-ans { color: #28a745; font-weight: bold; }
     .all-correct { background-color: #e6f4ea; color: #137333; padding: 15px; border-radius: 6px; font-weight: bold; text-align: center; margin-top: 15px; }
     .status-msg { font-size: 13px; color: #666; margin-top: 5px; }
@@ -111,8 +113,14 @@
 
     <div id="error-container"></div>
 
+    <div data-html2canvas-ignore="true" style="margin-top: 20px;">
+      <div id="snapshot-status" class="status-msg" role="status" aria-live="polite">測驗完成後會自動截圖，並寄到 bpegate@gmail.com。</div>
+      <button id="snapshot-retry-btn" class="hidden" type="button" onclick="emailResultSnapshot()" style="margin-top: 10px;">重新寄送結果截圖</button>
+      <a id="snapshot-download" class="hidden">下載結果截圖</a>
+    </div>
+
     <br>
-    <button id="restart-btn" onclick="location.reload()">重新開始測驗</button>
+    <button id="restart-btn" data-html2canvas-ignore="true" onclick="location.reload()">重新開始測驗</button>
   </div>
 
  <script>
@@ -172,6 +180,12 @@
     let timerInterval = null;
     const TIME_LIMIT_SECONDS = 20 * 60; // 20 分鐘
     let timeSpentFormatted = "";
+    let screenshotLibraryPromise = null;
+    let snapshotDataUrl = '';
+    let snapshotInProgress = false;
+    let snapshotSent = false;
+    let snapshotRequestId = '';
+    let quizFinished = false;
 
     const answerInput = document.getElementById('answer-input');
 
@@ -312,14 +326,16 @@
       const a = source.tokens;
       const b = standard.tokens;
       const distance = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
-      for (let i = 0; i <= a.length; i++) distance[i][0] = i;
-      for (let j = 0; j <= b.length; j++) distance[0][j] = j;
-      for (let i = 1; i <= a.length; i++) {
-        for (let j = 1; j <= b.length; j++) {
+      // 從字串尾端計算剩餘距離，再由前向後對齊。
+      // 同樣的最小距離有多個解時，優先保留前面已寫對的字母，避免把 fail 的 l 誤對齊至 low。
+      for (let i = 0; i <= a.length; i++) distance[i][b.length] = a.length - i;
+      for (let j = 0; j <= b.length; j++) distance[a.length][j] = b.length - j;
+      for (let i = a.length - 1; i >= 0; i--) {
+        for (let j = b.length - 1; j >= 0; j--) {
           distance[i][j] = Math.min(
-            distance[i - 1][j] + 1,
-            distance[i][j - 1] + 1,
-            distance[i - 1][j - 1] + (a[i - 1].normalized === b[j - 1].normalized ? 0 : 1)
+            distance[i + 1][j] + 1,
+            distance[i][j + 1] + 1,
+            distance[i + 1][j + 1] + (a[i].normalized === b[j].normalized ? 0 : 1)
           );
         }
       }
@@ -327,44 +343,98 @@
       const sourceErrors = new Set();
       const targetErrors = new Set();
       const missing = new Map();
-      let i = a.length;
-      let j = b.length;
-      while (i > 0 || j > 0) {
-        if (i > 0 && j > 0 && a[i - 1].normalized === b[j - 1].normalized && distance[i][j] === distance[i - 1][j - 1]) {
-          i--; j--;
-        } else if (i > 0 && j > 0 && distance[i][j] === distance[i - 1][j - 1] + 1) {
-          sourceErrors.add(a[i - 1].position);
-          targetErrors.add(b[j - 1].position);
-          i--; j--;
-        } else if (i > 0 && distance[i][j] === distance[i - 1][j] + 1) {
-          sourceErrors.add(a[i - 1].position);
-          i--;
+      const operations = [];
+      let i = 0;
+      let j = 0;
+      while (i < a.length || j < b.length) {
+        if (i < a.length && j < b.length && a[i].normalized === b[j].normalized && distance[i][j] === distance[i + 1][j + 1]) {
+          operations.push({ kind: 'match', input: i, target: j });
+          i++; j++;
+        } else if (i < a.length && j < b.length && distance[i][j] === distance[i + 1][j + 1] + 1) {
+          sourceErrors.add(a[i].position);
+          targetErrors.add(b[j].position);
+          operations.push({ kind: 'replace', input: i, target: j });
+          i++; j++;
+        } else if (i < a.length && distance[i][j] === distance[i + 1][j] + 1) {
+          sourceErrors.add(a[i].position);
+          operations.push({ kind: 'extra', input: i });
+          i++;
         } else {
           const position = i > 0 ? a[i - 1].position + 1 : (a.length ? a[0].position : 0);
-          const letter = standard.chars[b[j - 1].position];
-          missing.set(position, letter + (missing.get(position) || ''));
-          targetErrors.add(b[j - 1].position);
-          j--;
+          const letter = standard.chars[b[j].position];
+          missing.set(position, (missing.get(position) || '') + letter);
+          targetErrors.add(b[j].position);
+          operations.push({ kind: 'missing', target: j });
+          j++;
         }
       }
 
+      // 用完整單字解釋替換；整段多寫／漏寫保留原有空格，便於辨別相似題目。
+      function excerpt(side, indices, wholeWords) {
+        if (indices.length === 0) return '';
+        let start = side.tokens[indices[0]].position;
+        let end = side.tokens[indices[indices.length - 1]].position + 1;
+        if (wholeWords) {
+          while (start > 0 && /^[a-z0-9]$/i.test(side.chars[start - 1])) start--;
+          while (end < side.chars.length && /^[a-z0-9]$/i.test(side.chars[end])) end++;
+        }
+        return side.chars.slice(start, end).join('');
+      }
+      const details = [];
+      let block = [];
+      function describeBlock() {
+        if (block.length === 0) return;
+        const inputIndices = block.filter(op => op.input !== undefined).map(op => op.input);
+        const targetIndices = block.filter(op => op.target !== undefined).map(op => op.target);
+        let description;
+        if (targetIndices.length === 0) description = `多寫「${excerpt(source, inputIndices, false)}」`;
+        else if (inputIndices.length === 0) description = `漏寫「${excerpt(standard, targetIndices, false)}」`;
+        else description = `「${excerpt(source, inputIndices, true)}」應為「${excerpt(standard, targetIndices, true)}」`;
+        if (!details.includes(description)) details.push(description);
+        block = [];
+      }
+      operations.forEach(op => {
+        if (op.kind === 'match') describeBlock();
+        else block.push(op);
+      });
+      describeBlock();
+
       function render(chars, errors, omissions) {
+        // 將連續錯字與其中的空格合併成同一個紅色片段，讓多寫 low quality 一目了然。
+        const highlighted = new Set(errors);
+        const positions = [...errors].sort((left, right) => left - right);
+        for (let index = 1; index < positions.length; index++) {
+          const left = positions[index - 1];
+          const right = positions[index];
+          if (chars.slice(left + 1, right).every(char => /\s/.test(char))) {
+            for (let position = left + 1; position < right; position++) highlighted.add(position);
+          }
+        }
         let html = '';
+        let run = '';
+        function flush() {
+          if (run) html += `<span class="letter-error">${run}</span>`;
+          run = '';
+        }
         for (let position = 0; position <= chars.length; position++) {
           if (omissions && omissions.has(position)) {
+            flush();
             html += `<span class="letter-error missing-letter">[漏：${escapeHtml(omissions.get(position))}]</span>`;
           }
           if (position < chars.length) {
             const char = escapeHtml(chars[position]);
-            html += errors.has(position) ? `<span class="letter-error">${char}</span>` : char;
+            if (highlighted.has(position)) run += char;
+            else { flush(); html += char; }
           }
         }
+        flush();
         return html;
       }
       return {
-        count: distance[a.length][b.length],
+        count: distance[0][0],
         userHtml: render(source.chars, sourceErrors, missing),
-        targetHtml: render(standard.chars, targetErrors)
+        targetHtml: render(standard.chars, targetErrors),
+        detailsHtml: details.length ? `<div class="difference-note"><strong>差異說明：</strong><ul>${details.map(detail => `<li>${escapeHtml(detail)}</li>`).join('')}</ul></div>` : ''
       };
     }
 
@@ -395,7 +465,7 @@
           const status = item.isUnanswered ? '未作答' : !item.isCorrect ? '答錯' : item.difference.count > 0 ? '容錯答對' : '完全答對';
           html += `<tr class="${rowClass}">
             <td>${escapeHtml(item.cn)}</td>
-            <td class="answer-text">${item.isUnanswered ? '未作答' : item.difference.userHtml}</td>
+            <td class="answer-text">${item.isUnanswered ? '未作答' : item.difference.userHtml + item.difference.detailsHtml}</td>
             <td class="answer-text correct-ans">${item.isUnanswered ? escapeHtml(item.target) : item.difference.targetHtml}</td>
             <td class="review-status"><span class="result-badge ${badgeClass}">${status}</span>${item.isUnanswered ? '' : `<div class="status-msg">差異 ${item.difference.count} 個字元</div>`}</td>
           </tr>`;
@@ -434,6 +504,8 @@
     }
 
     function finishGame() {
+      if (quizFinished) return;
+      quizFinished = true;
       // 停止計時器
       if (timerInterval) clearInterval(timerInterval);
 
@@ -448,7 +520,7 @@
       document.getElementById('result-card').classList.remove('hidden');
 
       document.getElementById('result-user-info').innerHTML = `
-        <strong>UI：</strong> ${userData.empId} &nbsp;|&nbsp; <strong>Team：</strong> ${userData.team}
+        <strong>UI：</strong> ${escapeHtml(userData.empId)} &nbsp;|&nbsp; <strong>Team：</strong> ${escapeHtml(userData.team)}
       `;
       document.getElementById('final-score').textContent = score;
       document.getElementById('time-spent-text').textContent = `⏱️ 測驗耗時：${timeSpentFormatted}`;
@@ -457,6 +529,140 @@
       const review = renderAnswerReview(userAnswers, activeQuestions);
       errorContainer.innerHTML = review.html;
       sendResultToGoogleDrive(review.errorSummaryString);
+      emailResultSnapshot();
+    }
+
+    function loadScreenshotLibrary() {
+      if (typeof window.html2canvas === 'function') return Promise.resolve(window.html2canvas);
+      if (screenshotLibraryPromise) return screenshotLibraryPromise;
+      screenshotLibraryPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.async = true;
+        const timeout = setTimeout(() => {
+          script.remove();
+          reject(new Error('截圖元件載入逾時，請檢查網路後重試。'));
+        }, 20000);
+        script.onload = () => {
+          clearTimeout(timeout);
+          if (typeof window.html2canvas === 'function') resolve(window.html2canvas);
+          else reject(new Error('截圖元件未能載入。'));
+        };
+        script.onerror = () => {
+          clearTimeout(timeout);
+          script.remove();
+          reject(new Error('截圖元件載入失敗，請檢查網路後重試。'));
+        };
+        document.head.appendChild(script);
+      }).catch(error => {
+        screenshotLibraryPromise = null;
+        throw error;
+      });
+      return screenshotLibraryPromise;
+    }
+
+    async function captureResultSnapshot() {
+      const html2canvas = await loadScreenshotLibrary();
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      const snapshot = document.getElementById('result-card').cloneNode(true);
+      snapshot.id = 'result-snapshot';
+      snapshot.classList.remove('hidden');
+      snapshot.style.cssText = 'position:absolute;left:-10000px;top:0;width:900px;max-width:none;box-sizing:border-box;box-shadow:none;background:#fff;';
+      snapshot.querySelectorAll('[data-html2canvas-ignore], #upload-status').forEach(element => element.remove());
+      snapshot.querySelectorAll('.review-scroll').forEach(element => { element.style.overflow = 'visible'; });
+      document.body.appendChild(snapshot);
+      try {
+        const canvas = await html2canvas(snapshot, { backgroundColor: '#ffffff', scale: 1, logging: false, windowWidth: 1000 });
+        const dataUrl = canvas.toDataURL('image/png');
+        if (!dataUrl.startsWith('data:image/png;base64,') || dataUrl.length < 30) throw new Error('未能產生結果截圖。');
+        return dataUrl;
+      } finally {
+        snapshot.remove();
+      }
+    }
+
+    function postSnapshotForEmail(dataUrl) {
+      if (!snapshotRequestId) snapshotRequestId = crypto.randomUUID();
+      const requestId = snapshotRequestId;
+      return new Promise((resolve, reject) => {
+        const iframe = document.createElement('iframe');
+        iframe.name = 'snapshot_' + requestId.replace(/-/g, '');
+        iframe.style.display = 'none';
+        iframe.title = '結果截圖寄送';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = GOOGLE_SCRIPT_URL;
+        form.target = iframe.name;
+        form.style.display = 'none';
+        const fields = {
+          action: 'emailResultSnapshot', requestId,
+          timestamp: new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Hong_Kong' }),
+          employeeId: userData.empId, team: userData.team,
+          score: String(score), timeSpent: timeSpentFormatted,
+          imageBase64: dataUrl.split(',')[1]
+        };
+        Object.entries(fields).forEach(([name, value]) => {
+          const field = document.createElement('input');
+          field.type = 'hidden'; field.name = name; field.value = value;
+          form.appendChild(field);
+        });
+        let timeout;
+        function cleanup() {
+          clearTimeout(timeout);
+          window.removeEventListener('message', receive);
+          form.remove(); iframe.remove();
+        }
+        function receive(event) {
+          // Apps Script 回應在 Google 的沙箱中執行，僅接受 Google 來源及本次請求的確認。
+          let origin;
+          try { origin = new URL(event.origin); } catch (_) { return; }
+          const trusted = origin.protocol === 'https:' && (origin.hostname === 'script.google.com' || origin.hostname.endsWith('.googleusercontent.com'));
+          const reply = event.data;
+          if (!trusted || !reply || reply.type !== 'egate-snapshot-result' || reply.requestId !== requestId) return;
+          cleanup();
+          if (reply.ok === true) resolve();
+          else reject(new Error(reply.message || 'Apps Script 寄信失敗。'));
+        }
+        window.addEventListener('message', receive);
+        timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('未收到寄信確認，請先查看信箱；如未收到，請確認 Apps Script 已加入寄信程式、完成授權並部署新版本，再重試。'));
+        }, 90000);
+        document.body.appendChild(iframe);
+        document.body.appendChild(form);
+        try { form.submit(); } catch (error) { cleanup(); reject(error); }
+      });
+    }
+
+    async function emailResultSnapshot() {
+      if (snapshotInProgress || snapshotSent) return;
+      snapshotInProgress = true;
+      const status = document.getElementById('snapshot-status');
+      const retry = document.getElementById('snapshot-retry-btn');
+      const restart = document.getElementById('restart-btn');
+      retry.classList.add('hidden');
+      restart.disabled = true;
+      status.style.color = '#555';
+      status.textContent = '正在製作完整結果截圖，請勿關閉頁面…';
+      try {
+        if (!snapshotDataUrl) snapshotDataUrl = await captureResultSnapshot();
+        const download = document.getElementById('snapshot-download');
+        download.href = snapshotDataUrl;
+        download.download = 'Egate-Result-' + userData.empId.replace(/[^a-zA-Z0-9_-]/g, '_') + '.png';
+        download.classList.remove('hidden');
+        status.textContent = '正在寄送截圖到 bpegate@gmail.com，請勿關閉頁面…';
+        await postSnapshotForEmail(snapshotDataUrl);
+        snapshotSent = true;
+        status.style.color = '#176b3a';
+        status.textContent = '✅ Apps Script 已確認寄出截圖至 bpegate@gmail.com。請在信箱查看附件（亦可檢查垃圾郵件）。';
+      } catch (error) {
+        status.style.color = '#b42318';
+        status.textContent = '⚠️ ' + error.message;
+        retry.classList.remove('hidden');
+      } finally {
+        snapshotInProgress = false;
+        restart.disabled = false;
+      }
     }
 
     function sendResultToGoogleDrive(errorDetails) {
